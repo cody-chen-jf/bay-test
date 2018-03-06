@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset=utf-8>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <title>BAPLIE Viewer Online - Bay View</title>
+
+    <link rel="stylesheet" type="text/css" media="all" href="style/bay.css"/>
+</head>
+<body>
+<div style="float:left; width:100%">
+    <div id="bodyDiv" class="diagram">
+
+    </div>
+
+</div>
+
+
+<script type="text/javascript" src="js/jquery.min.js"></script>
+<script type="text/javascript" src="js/originalData.js"></script>
+<script type="text/javascript" src="js/color.js"></script>
+
+<script>
+    var colorjson = originalData["2DVesselData"];
+
+    MAX_TIER_ABOVE = 98;
+    MAX_TIER_BELOW = 30;
+    MAX_ROW = 50;
+    CONTAINER_HEIGHT = 25;
+    CONTAINER_HEIGHT_HQ = 25;
+    CONTAINER_WIDTH = 25;
+    ABOVE_DECK_START_TIER = 25;
+
+    var maxBayOfVessel = -1000;
+    var minRowOfVessel = 1000;
+    var maxRowOfVessel = -1000;
+    var maxTierOfVesselAbove = -1000;
+    var minTierOfVesselAbove = 1000;
+    var maxTierOfVesselBelow = -1000;
+    var hasZeroRow = false;
+    var baplie = {};
+
+    var selectedBay = '';
+
+    buildDiagram();
+    drawGrid();
+
+    function drawBay(bayNumber, number) {
+        selectedBay = bayNumber;
+        console.log("bayNumber: ", bayNumber);
+        g2s = colorjson;
+        len = g2s.length;
+        rowSum = {};
+
+        for (i = 0; i < len; i++) {
+            loc = g2s[i].p;
+            if (!isValidLoc(loc)) continue;
+            bay = parseInt(loc.substring(0, 3));
+            row = loc.substring(3, 5);
+            tier = loc.substring(5);
+            containerID = "TIER" + tier + "ROW" + row;
+            div = $("." + number, " #" + containerID);
+            div.data("containerQty", 0);
+            div.css("background-color", "white");
+            div.empty();
+        }
+
+        $("[id ^= 'ROWFOOTERVALUE']").empty();
+        if (bayNumber === "") return;
+
+        colorBy("i");
+    }
+
+    function buildDiagram() {
+        baplie.bay = {};
+        g2s = colorjson;
+        len = g2s.length;
+        for (i = 0; i < len; i++) {
+            loc = g2s[i].p;
+            if (!isValidLoc(loc)) continue;
+            bayStr = loc.substring(0, 3);
+            rowStr = loc.substring(3, 5);
+            tierStr = loc.substring(5);
+
+            bay = parseInt(bayStr);
+            row = parseInt(rowStr);
+            tier = parseInt(tierStr);
+            if (baplie.bay[bayStr] == undefined) baplie.bay[bayStr] = {};
+            if (baplie.bay[bayStr][rowStr] == undefined) baplie.bay[bayStr][rowStr] = {};
+            var ele = {};
+            if (baplie.bay[bayStr][rowStr][tierStr] == undefined) {
+                baplie.bay[bayStr][rowStr][tierStr] = {};
+                baplie.bay[bayStr][rowStr][tierStr].equipment = ele;
+                baplie.bay[bayStr][rowStr][tierStr].equipments = [ele];
+            } else {
+                baplie.bay[bayStr][rowStr][tierStr].equipments[baplie.bay[bayStr][rowStr][tierStr].equipments.length] = ele;
+            }
+
+            if (g2s[i].c) {
+                ele.equipNo = g2s[i].c;
+                if (ele.equipNo.indexOf(" ") == -1) {
+                    ele.equipNo = ele.equipNo.substring(0, 4) + " " + ele.equipNo.substring(4);
+                }
+
+                ele.location = loc;
+                ele.equipISO = g2s[i].i;
+                ele.equipWeightMT = g2s[i].m;
+                ele.equipWeight = ele.equipWeightMT * 1000;
+                equipStatusCode = g2s[i].s;
+                equipStatus = '';
+
+
+                if (equipStatusCode == 1) {
+                    equipStatus = 'F';
+                } else {
+                    if (equipStatusCode == 0) {
+                        equipStatus = 'e';
+                    }
+                }
+                equipStatusLong = '';
+                if (equipStatusCode == 1) {
+                    equipStatusLong = 'Full';
+                } else {
+                    if (equipStatusCode == 0) {
+                        equipStatusLong = 'Empty';
+                    } else {
+                        if (equipStatusCode == ' ') {
+                            equipStatusLong = 'BreakBulk';
+                        }
+                    }
+                }
+                ele.equipStatus = equipStatus;
+                ele.equipStatusLong = equipStatusLong;
+
+            } else {
+                ele.equipNo = 'xxxxxxxxx';
+                ele.location = '9999999';
+                ele.equipISO = '20GP';
+                ele.equipWeight = '0';
+                ele.equipWeightMT = '0';
+                equipStatusLong = 'Empty';
+                equipStatusCode = 'UnKnow';
+            }
+            ele.equipHazardous = '';
+
+            if (g2s[i].w == 1) {
+                ele.equipHazardous = 'HAZARDOUS';
+                ele.equipHazardousLong = 'YES';
+            } else {
+                ele.equipHazardousLong = 'NO'
+            }
+            ele.equipReefer = '';
+
+            if (g2s[i].r == 1) {
+                ele.equipReefer = 'REEFER';
+                ele.equipReeferLong = 'YES';
+            } else {
+                ele.equipReeferLong = 'NO';
+            }
+            ele.equipOOG = '';
+
+            if (g2s[i].x == 1) {
+                ele.equipOOG = 'OOG';
+                ele.equipOOGLong = 'YES';
+            } else {
+                ele.equipOOGLong = 'NO';
+            }
+
+            ele.equipLine = '';
+
+            if (g2s[i].o) {
+                ele.equipLine = g2s[i].o;
+            } else {
+                ele.equipLine = '';
+            }
+            ele.equipPOD = "";
+
+            ele.equipPOD = g2s[i].d;
+            ele.equipPOL = g2s[i].ld;
+            ele.equipUNNumbers = "";
+
+            ele.equipUNNumbers = g2s[i].un;
+            ele.equipHazardousCodes = "";
+
+            ele.equipHazardousCodes = g2s[i].im;
+            if (bay > maxBayOfVessel) {
+                maxBayOfVessel = bay;
+            }
+            //find max tier above and below
+            if (tier >= ABOVE_DECK_START_TIER) {//above
+                if (tier > maxTierOfVesselAbove && tier <= MAX_TIER_ABOVE) {
+                    maxTierOfVesselAbove = tier;
+                }
+                if (tier < minTierOfVesselAbove) {
+                    minTierOfVesselAbove = tier;
+                }
+            } else {//below
+                if (tier > maxTierOfVesselBelow && tier <= MAX_TIER_BELOW) {
+                    maxTierOfVesselBelow = tier;
+                }
+            }
+
+            if (row < minRowOfVessel) {
+                minRowOfVessel = row;
+            }
+            //find max row and min row
+            if (row > maxRowOfVessel && row <= MAX_ROW) {
+                maxRowOfVessel = row;
+            }
+
+            if (row == 0) {
+                hasZeroRow = true;
+            }
+        }
+        if (maxBayOfVessel % 2 == 0) {
+            maxBayOfVessel = maxBayOfVessel + 1;
+        }
+        for (b = 1; b <= maxBayOfVessel; b = b + 2) {
+            $("#bays").append($('<option>', {
+                value: b,
+                text: "Bay " + formatNumber(b, 3)
+            }));
+        }
+
+        baplie.maxBayOfVessel = maxBayOfVessel;
+        baplie.maxRowOfVessel = maxRowOfVessel;
+        baplie.maxTierOfVesselAbove = maxTierOfVesselAbove;
+        baplie.maxTierOfVesselBelow = maxTierOfVesselBelow;
+    }
+
+    function drawGrid() {
+        $("#bodyDiv").append('<div id="diagram" class="diagram" style="padding:5px">\n' +
+            '            <div id="diagramAbove" class="diagram"></div>\n' +
+            '            <div id="deckWrapper" style="float:left;margin-bottom:20px">\n' +
+            '                <div id="deck" class="deck"></div>\n' +
+            '            </div>\n' +
+            '            <div id="diagramBelow" class="diagram"></div>\n' +
+            '        </div>');
+
+        if (hasZeroRow) {
+            minRowOfVessel = 0;
+        } else {
+            minRowOfVessel = 1;
+        }
+        if (maxRowOfVessel % 2 != 0) {
+            maxRowOfVessel = maxRowOfVessel + 1;
+        }
+        console.log("(maxRowOfVessel + 1)", (maxRowOfVessel + 1));
+        console.log("CONTAINER_WIDTH", CONTAINER_WIDTH);
+        diagramWidth = (maxRowOfVessel + 1) * CONTAINER_WIDTH;
+        console.log("diagramWidth:", diagramWidth);
+        if (hasZeroRow) {
+            diagramWidth = diagramWidth + CONTAINER_WIDTH;
+        }
+        $("#diagram").css("width", diagramWidth);
+        $("#diagramAbove").css("width", diagramWidth);
+        $("#diagramBelow").css("width", diagramWidth);
+        $("#deckWrapper").css("width", diagramWidth);
+
+        //draw row header above
+        if (maxTierOfVesselAbove != -1000) {
+            div = $("<div id='ROWHEADERABOVE' class='baplierow'></div>");
+            $("#diagramAbove").append(div);
+            header = $("<div class='rowHeaderElement'></div>");
+            div.append(header);
+
+            row = maxRowOfVessel;
+            for (i = maxRowOfVessel; i >= minRowOfVessel; i = i - 1) {
+                div = $("<div id='ROW" + formatNumber(row, 2) + "ABOVE' class='baplierow'></div>");
+                $("#diagramAbove").append(div);
+                header = $("<div class='rowHeaderElement'>" + formatNumber(row, 2) + "</div>");
+                div.append(header);
+                row = getNextRow(row);
+            }
+        } else {
+            $("#diagramAbove").append("<div class='nocontainer' style='text-align:left;'>There are no containers above deck on this vessel</div>");
+        }
+
+        //draw container above
+        for (tier = maxTierOfVesselAbove; tier >= minTierOfVesselAbove; tier = tier - 2) {
+            div = $("<div class='tierHeaderElement'><span>" + formatNumber(tier, 2) + "</span></div>");
+            $("#ROWHEADERABOVE").append(div);
+            row = maxRowOfVessel;
+            for (i = maxRowOfVessel; i >= minRowOfVessel; i = i - 1) {
+                div = $("<div id='TIER" + formatNumber(tier, 2) + "ROW" + formatNumber(row, 2) + "' class='equipmentbox'>" + "</div>");
+                $("#ROW" + formatNumber(row, 2) + "ABOVE").append(div);
+                row = getNextRow(row);
+            }
+        }
+        //draw row footer above
+        row = maxRowOfVessel;
+        for (i = maxRowOfVessel; i >= minRowOfVessel; i = i - 1) {
+            footer = $("<div id='ROWFOOTERVALUE" + formatNumber(row, 2) + "ABOVE' class='rowFooterElement'></div>");
+            $("#ROW" + formatNumber(row, 2) + "ABOVE").append(footer);
+            row = getNextRow(row);
+        }
+
+        //draw rows below
+        if (maxTierOfVesselBelow != -1000) {//The vessel has below deck container
+            div = $("<div id='ROWHEADERBELOW' class='baplierow'></div>");
+            $("#diagramBelow").append(div);
+            header = $("<div class='rowHeaderElement'></div>");
+            div.append(header);
+
+            row = maxRowOfVessel;
+            for (i = maxRowOfVessel; i >= minRowOfVessel; i = i - 1) {
+                div = $("<div id='ROW" + formatNumber(row, 2) + "BELOW' class='baplierow'></div>");
+                $("#diagramBelow").append(div);
+                header = $("<div class='rowHeaderElement'>" + formatNumber(row, 2) + "</div>");
+                div.append(header);
+                row = getNextRow(row);
+            }
+        } else {//The vessel has no below-deck containers
+            $("#diagramBelow").append("<div class='nocontainer style='text-align:left;'>There are no containers below deck on this vessel</div>");
+        }
+        //draw container below
+        for (tier = maxTierOfVesselBelow; tier >= 2; tier = tier - 2) {
+            div = $("<div class='tierHeaderElement'><span>" + formatNumber(tier, 2) + "</span></div>");
+            $("#ROWHEADERBELOW").append(div);
+            row = maxRowOfVessel;
+            for (i = maxRowOfVessel; i >= minRowOfVessel; i = i - 1) {
+                div = $("<div id='TIER" + formatNumber(tier, 2) + "ROW" + formatNumber(row, 2) + "' class='equipmentbox'>" + "</div>");
+                $("#ROW" + formatNumber(row, 2) + "BELOW").append(div);
+                row = getNextRow(row);
+            }
+        }
+
+        //draw row footer below
+        row = maxRowOfVessel;
+        for (i = maxRowOfVessel; i >= minRowOfVessel; i = i - 1) {
+            footer = $("<div id='ROWFOOTERVALUE" + formatNumber(row, 2) + "BELOW' class='rowFooterElement'></div>");
+            $("#ROW" + formatNumber(row, 2) + "BELOW").append(footer);
+            row = getNextRow(row);
+        }
+
+        div = $("<div id='ROWENDBELOW' class='baplierow'></div>");
+        $("#diagramBelow").append(div);
+    }
+
+    function formatNumber(num, length) {
+        var r = "" + num;
+        while (r.length < length) {
+            r = "0" + r;
+        }
+        return r;
+    }
+
+    function getNextRow(currentRow) {
+        if (currentRow > 2 && currentRow % 2 == 0) {
+            nextRow = currentRow - 2;
+        } else if (currentRow == 2) {
+            if (hasZeroRow) {
+                nextRow = 0;
+            } else {
+                nextRow = 1;
+            }
+        } else if (currentRow == 0) {
+            nextRow = 1;
+        } else {
+            nextRow = currentRow + 2;
+        }
+        return nextRow;
+    }
+
+    function isValidLoc(loc) {
+        if (typeof loc === 'string' && loc.length === 7) {
+            for (var x = 0; x < loc.length; x++) {
+                var c = loc.charAt(x);
+                if (c < '0' || c > '9') return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    function colorBy(colBy) {
+        console.log("colBy", colBy);
+        var colorSchemes = {};
+        var colorIndex = -1;
+        var myColor;
+        var gettedColors = {
+            "22GP": {color: "#8c79f3", colorIsRandom: true},
+            "2260": {color: "#f379ef", colorIsRandom: true},
+            "2350": {color: "#79f3d3", colorIsRandom: true},
+            "4300": {color: "#f3af79", colorIsRandom: true}
+        };
+        var finalColorSchemes = {};
+
+        function getColorOfProperty(eq) {
+            var schemeIndex = eq[colBy];
+            if (!gettedColors[colBy]) {
+                if (colorSchemes[schemeIndex] === undefined) {
+                    colorIndex++;
+                    colorSchemes[schemeIndex] = colorIndex;
+                    finalColorSchemes[schemeIndex] = colors[colorIndex];
+                }
+                myColor = colors[colorSchemes[schemeIndex]] || "white";
+
+            } else {
+                myColor = gettedColors[colBy][schemeIndex].color || "white";
+                finalColorSchemes[schemeIndex] = myColor;
+            }
+            return myColor;
+        }
+
+        colorjson.forEach(function (equipment) {
+            var pos = equipment.p;
+            if (isValidLoc(pos)) {
+                var bay = parseInt(pos.substring(0, 3));
+                if (bay <= selectedBay + 1 && bay >= selectedBay - 1) {
+                    var row = pos.substring(3, 5);
+                    var tier = pos.substring(5);
+                    var containerID = "TIER" + tier + "ROW" + row;
+                    var div = $("#" + containerID);
+                    div.css("background-color", getColorOfProperty(equipment));
+                }
+            }
+        });
+        colorArray = [];
+        colorArrayIndex = 0;
+        $.map(finalColorSchemes, function (colorValue, attributeValue) {
+            colorArray[colorArrayIndex] = attributeValue;
+            colorArrayIndex++;
+        });
+        colorArray.sort();
+    }
+</script>
+<script>
+    $(document).ready(function () {
+        drawBay(1, "001");
+//        drawBay(3, "003");
+//        drawBay(3);
+    });
+</script>
+
+</body>
+</html>
